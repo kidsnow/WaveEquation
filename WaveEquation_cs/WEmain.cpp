@@ -26,7 +26,6 @@ int grid_size = GRIDSIDENUM;
 float grid_length = GRIDLENGTH;
 float h = GRIDLENGTH / GRIDSIDENUM;
 
-#define ITERNUM 300
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 void WEGaussSeidel(Grid grid0[], Grid grid1[], Grid grid2[]){
@@ -176,8 +175,8 @@ void draw_axes(void) {
 	glBindVertexArray(0);
 }
 
-struct Grid grid0[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid1[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid2[GRIDSIDENUM*(GRIDSIDENUM + 2)];
-GLuint bufs[4], gridBuf0, gridBuf1, gridBuf2, elBuf, grid_VBO, grid_VAO, textureName;
+struct Grid grid0[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid1[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid2[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid3[GRIDSIDENUM*(GRIDSIDENUM + 2)];
+GLuint bufs[5], gridBuf0, gridBuf1, gridBuf2, gridBuf3, elBuf, grid_VBO, grid_VAO, textureName;
 GLuint GridIndices[(GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 6];
 int triangleNum = (GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 2;
 int trianglePointNum = triangleNum * 3;
@@ -191,9 +190,11 @@ void prepare_grid(void){
 			grid0[idx].y = 0.0f;
 			grid1[idx].y = 0.0f;
 			grid2[idx].y = 0.0f;
+			grid3[idx].y = 0.0f;
 			grid0[idx].w = 0.0f;
 			grid1[idx].w = 0.0f;
 			grid2[idx].w = 0.0f;
+			grid3[idx].w = 0.0f;
 		}
 	}
 
@@ -214,6 +215,11 @@ void prepare_grid(void){
 			grid2[idx].y = 0.0f;
 			grid2[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
 			grid2[idx].w = 1.0f;
+
+			grid3[idx].x = j*GRIDLENGTH / GRIDSIDENUM;
+			grid3[idx].y = 0.0f;
+			grid3[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
+			grid3[idx].w = 1.0f;
 		}
 	}
 	//grid1[GRIDSIDENUM*GRIDSIDENUM / 3 - GRIDSIDENUM / 3].y = INITSPEED * TIMEINTERVAL;
@@ -226,22 +232,6 @@ void prepare_grid(void){
 			grid0[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 		}
 	}
-	x_mid = GRIDSIDENUM / 3 + 1;
-	y_mid = GRIDSIDENUM / 3;
-	for (int i = 0; i < GRIDSIDENUM; i++) {
-		for (int j = 0; j < GRIDSIDENUM; j++) {
-			int idx = GRIDSIDENUM * (i + 1) + j;
-			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
-		}
-	}
-	x_mid = GRIDSIDENUM * 2 / 3 + 1;
-	y_mid = GRIDSIDENUM / 3;
-	for (int i = 0; i < GRIDSIDENUM; i++) {
-		for (int j = 0; j < GRIDSIDENUM; j++) {
-			int idx = GRIDSIDENUM * (i + 1) + j;
-			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
-		}
-	}
 	x_mid = GRIDSIDENUM * 2 / 3 + 1;
 	y_mid = GRIDSIDENUM / 3;
 	for (int i = 0; i < GRIDSIDENUM; i++) {
@@ -258,14 +248,13 @@ void prepare_grid(void){
 			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 		}
 	}
-	x_mid = GRIDSIDENUM / 3 + 1;
-	y_mid = GRIDSIDENUM / 3;
-	for (int i = 0; i < GRIDSIDENUM; i++) {
-		for (int j = 0; j < GRIDSIDENUM; j++) {
-			int idx = GRIDSIDENUM * (i + 1) + j;
-			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
-		}
+
+	/*for (int i = 0; i < GRIDSIDENUM; i ++) {
+	for (int j = 0; j < GRIDSIDENUM; j ++) {
+	int idx = GRIDSIDENUM * (i + 1) + j;
+	grid0[idx].y *= 1.0;
 	}
+	}*/
 #else
 	int x_mid = GRIDSIDENUM / 2 + 1;
 	int y_mid = GRIDSIDENUM / 2;
@@ -305,11 +294,12 @@ void prepare_grid(void){
 	beta = ALPHASQUARE*time_interval*time_interval / (h*h);
 	diag_el_of_A = 1 + 4 * beta;
 
-	glGenBuffers(4, bufs);
+	glGenBuffers(5, bufs);
 	gridBuf0 = bufs[0];
 	gridBuf1 = bufs[1];
 	gridBuf2 = bufs[2];
-	elBuf = bufs[3];
+	gridBuf3 = bufs[3];
+	elBuf = bufs[4];
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
@@ -317,6 +307,8 @@ void prepare_grid(void){
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridBuf2);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
 
 	//element indices
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elBuf);
@@ -441,9 +433,10 @@ void display(void) {
 		if (count == 50000)
 			printf("%f\n", (float)total_time / (float)count);
 
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, bufs[turn % 2]);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, bufs[(turn + 1) % 2]);
-		result = (turn + 1) % 2;
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, bufs[turn % 3]);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, bufs[(turn + 1) % 3]);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, bufs[(turn + 2) % 3]);
+		result = (turn + 1) % 3;
 		turn++;
 	}
 #endif
@@ -460,11 +453,34 @@ void display(void) {
 
 	glutSwapBuffers();
 }
-
+int x_mid, y_mid;
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case 27: // ESC key
 		glutLeaveMainLoop(); // Incur destuction callback for cleanups.
+		break;
+	case 't':
+#ifdef RAINFALL
+		x_mid = GRIDSIDENUM * 1 / 4 + 1;
+		y_mid = GRIDSIDENUM * 3 / 4;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid3[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+#else
+		x_mid = GRIDSIDENUM / 2 + 1;
+		y_mid = GRIDSIDENUM / 2;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid3[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+#endif
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
 		break;
 	case 'r':
 
@@ -502,30 +518,14 @@ void keyboard(unsigned char key, int x, int y) {
 		}
 		//grid1[GRIDSIDENUM*GRIDSIDENUM / 3 - GRIDSIDENUM / 3].y = INITSPEED * TIMEINTERVAL;
 #ifdef RAINFALL
-		int x_mid = GRIDSIDENUM * 1 / 4 + 1;
-		int y_mid = GRIDSIDENUM * 3 / 4;
+		x_mid = GRIDSIDENUM * 1 / 4 + 1;
+		y_mid = GRIDSIDENUM * 3 / 4;
 		for (int i = 0; i < GRIDSIDENUM; i++) {
 			for (int j = 0; j < GRIDSIDENUM; j++) {
 				int idx = GRIDSIDENUM * (i + 1) + j;
 				grid0[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 			}
 		}
-		x_mid = GRIDSIDENUM / 3 + 1;
-		y_mid = GRIDSIDENUM / 3;
-		for (int i = 0; i < GRIDSIDENUM; i++) {
-			for (int j = 0; j < GRIDSIDENUM; j++) {
-				int idx = GRIDSIDENUM * (i + 1) + j;
-				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
-			}
-		}
-		x_mid = GRIDSIDENUM * 2 / 3 + 1;
-		y_mid = GRIDSIDENUM / 3;
-		for (int i = 0; i < GRIDSIDENUM; i++) {
-			for (int j = 0; j < GRIDSIDENUM; j++) {
-				int idx = GRIDSIDENUM * (i + 1) + j;
-				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
-			}
-		}
 		x_mid = GRIDSIDENUM * 2 / 3 + 1;
 		y_mid = GRIDSIDENUM / 3;
 		for (int i = 0; i < GRIDSIDENUM; i++) {
@@ -542,17 +542,16 @@ void keyboard(unsigned char key, int x, int y) {
 				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 			}
 		}
-		x_mid = GRIDSIDENUM / 3 + 1;
-		y_mid = GRIDSIDENUM / 3;
-		for (int i = 0; i < GRIDSIDENUM; i++) {
-			for (int j = 0; j < GRIDSIDENUM; j++) {
+
+		/*for (int i = 0; i < GRIDSIDENUM; i ++) {
+			for (int j = 0; j < GRIDSIDENUM; j ++) {
 				int idx = GRIDSIDENUM * (i + 1) + j;
-				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+				grid0[idx].y *= 1.0;
 			}
-		}
+		}*/
 #else
-		int x_mid = GRIDSIDENUM / 2 + 1;
-		int y_mid = GRIDSIDENUM / 2;
+		x_mid = GRIDSIDENUM / 2 + 1;
+		y_mid = GRIDSIDENUM / 2;
 		for (int i = 0; i < GRIDSIDENUM; i++) {
 			for (int j = 0; j < GRIDSIDENUM; j++) {
 				int idx = GRIDSIDENUM * (i + 1) + j;
@@ -560,12 +559,19 @@ void keyboard(unsigned char key, int x, int y) {
 			}
 		}
 #endif
+		if (grid0[GRIDSIDENUM * (32 + 1) + 32].y < 0) {
+			printf("FK!\n");
+		}
 		//triangle mesh initialization			INDEXING!!!
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridBuf2);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
 		break;
 	}
 }

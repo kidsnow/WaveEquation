@@ -5,12 +5,13 @@
 #define GRIDLENGTH 100.0
 #define INITSPEED 30.0
 #define ALPHASQUARE 7.0
-#define TIMEINTERVAL 0.0006
+#define TIMEINTERVAL 0.005
 #define SIGMA 1.0
 #define PI 3.1415926535
 #define EEE 2.71828182
 #define WAITFOR 0
 #define RAINFALL
+#define ITERNUM 30
 
 #endif
 
@@ -23,11 +24,8 @@
 #define SIGMA 5.0
 #define PI 3.1415926535
 #define EEE 2.71828182
-#define WAITFOR 3000
-
-struct Grid{
-	float x, y, z, w;
-};
+#define WAITFOR 0
+#define ITERNUM 300
 #endif
 
 ////점성이 약한 매질
@@ -39,11 +37,9 @@ struct Grid{
 //#define SIGMA 3.0
 //#define PI 3.1415926535
 //#define EEE 2.71828182
-//#define WAITFOR 3000
+//#define WAITFOR 0
+//#define ITERNUM 300
 //
-//struct Grid{
-//	float x, y, z, w;
-//};
 
 ////점성이 강한 매질
 //#define GRIDSIDENUM 64
@@ -54,8 +50,6 @@ struct Grid{
 //#define SIGMA 3.0
 //#define PI 3.1415926535
 //#define EEE 2.71828182
-//#define WAITFOR 3000
+//#define WAITFOR 0
+//#define ITERNUM 300
 //
-//struct Grid{
-//	float x, y, z, w;
-//};

@@ -7,13 +7,16 @@ uniform float beta;
 uniform int grid_size;
 
 layout (std430, binding = 0)buffer Prev {
-	vec4 current[];
+	vec4 previous[];
 };
 layout (std430, binding = 1)buffer Cur {
-	vec4 previous[];
+	vec4 current[];
 };
 layout (std430, binding = 2)buffer PrevOfPrev {
 	vec4 previousOfPrevious[];
+};
+layout (std430, binding = 3)buffer MoreEffects {
+	vec4 moreEffects[];
 };
 
 void main(){
@@ -26,6 +29,8 @@ void main(){
 		temp += previous[idx - 1].y;
 		temp += previous[idx + 1].y;
 		temp += previous[idx + grid_size].y;
-		current[idx].y = (2*previous[idx].y - current[idx].y + beta*temp) / diag_el_of_A;
+		current[idx].y = (2*previous[idx].y - previousOfPrevious[idx].y + beta*temp) / diag_el_of_A;
+		current[idx].y += moreEffects[idx].y;
+		moreEffects[idx].y = 0;
 	}
 }
