@@ -232,6 +232,22 @@ void prepare_grid(void){
 			grid0[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 		}
 	}
+	x_mid = GRIDSIDENUM / 3 + 1;
+	y_mid = GRIDSIDENUM / 3;
+	for (int i = 0; i < GRIDSIDENUM; i++) {
+		for (int j = 0; j < GRIDSIDENUM; j++) {
+			int idx = GRIDSIDENUM * (i + 1) + j;
+			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+		}
+	}
+	x_mid = GRIDSIDENUM * 2 / 3 + 1;
+	y_mid = GRIDSIDENUM / 3;
+	for (int i = 0; i < GRIDSIDENUM; i++) {
+		for (int j = 0; j < GRIDSIDENUM; j++) {
+			int idx = GRIDSIDENUM * (i + 1) + j;
+			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+		}
+	}
 	x_mid = GRIDSIDENUM * 2 / 3 + 1;
 	y_mid = GRIDSIDENUM / 3;
 	for (int i = 0; i < GRIDSIDENUM; i++) {
@@ -248,13 +264,14 @@ void prepare_grid(void){
 			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 		}
 	}
-
-	/*for (int i = 0; i < GRIDSIDENUM; i ++) {
-	for (int j = 0; j < GRIDSIDENUM; j ++) {
-	int idx = GRIDSIDENUM * (i + 1) + j;
-	grid0[idx].y *= 1.0;
+	x_mid = GRIDSIDENUM / 3 + 1;
+	y_mid = GRIDSIDENUM / 3;
+	for (int i = 0; i < GRIDSIDENUM; i++) {
+		for (int j = 0; j < GRIDSIDENUM; j++) {
+			int idx = GRIDSIDENUM * (i + 1) + j;
+			grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+		}
 	}
-	}*/
 #else
 	int x_mid = GRIDSIDENUM / 2 + 1;
 	int y_mid = GRIDSIDENUM / 2;
@@ -378,7 +395,9 @@ int flag_fill_floor = 0;
 int count = 0;
 int total_time = 0.0;
 void display(void) {
-	srand(5);
+	LARGE_INTEGER seed;
+	QueryPerformanceCounter(&seed);
+	srand(seed.QuadPart);
 	LARGE_INTEGER start, end, f;
 	QueryPerformanceFrequency(&f);
 
@@ -454,6 +473,7 @@ void display(void) {
 	glutSwapBuffers();
 }
 int x_mid, y_mid;
+float speed;
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case 27: // ESC key
@@ -461,12 +481,14 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 	case 't':
 #ifdef RAINFALL
-		x_mid = GRIDSIDENUM * 1 / 4 + 1;
-		y_mid = GRIDSIDENUM * 3 / 4;
+		x_mid = rand() * 1000 % GRIDSIDENUM;
+		y_mid = rand() * 1000 % GRIDSIDENUM;
+		speed = (1.0 + (0.5 - (rand() % 5) * 0.1)) * INITSPEED;
+		printf("%f\n", speed);
 		for (int i = 0; i < GRIDSIDENUM; i++) {
 			for (int j = 0; j < GRIDSIDENUM; j++) {
 				int idx = GRIDSIDENUM * (i + 1) + j;
-				grid3[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+				grid3[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * speed * TIMEINTERVAL;
 			}
 		}
 #else
@@ -518,12 +540,28 @@ void keyboard(unsigned char key, int x, int y) {
 		}
 		//grid1[GRIDSIDENUM*GRIDSIDENUM / 3 - GRIDSIDENUM / 3].y = INITSPEED * TIMEINTERVAL;
 #ifdef RAINFALL
-		x_mid = GRIDSIDENUM * 1 / 4 + 1;
-		y_mid = GRIDSIDENUM * 3 / 4;
+		int x_mid = GRIDSIDENUM * 1 / 4 + 1;
+		int y_mid = GRIDSIDENUM * 3 / 4;
 		for (int i = 0; i < GRIDSIDENUM; i++) {
 			for (int j = 0; j < GRIDSIDENUM; j++) {
 				int idx = GRIDSIDENUM * (i + 1) + j;
 				grid0[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+		x_mid = GRIDSIDENUM / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+		x_mid = GRIDSIDENUM * 2 / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 			}
 		}
 		x_mid = GRIDSIDENUM * 2 / 3 + 1;
@@ -542,13 +580,14 @@ void keyboard(unsigned char key, int x, int y) {
 				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 			}
 		}
-
-		/*for (int i = 0; i < GRIDSIDENUM; i ++) {
-			for (int j = 0; j < GRIDSIDENUM; j ++) {
+		x_mid = GRIDSIDENUM / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
 				int idx = GRIDSIDENUM * (i + 1) + j;
-				grid0[idx].y *= 1.0;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
 			}
-		}*/
+		}
 #else
 		x_mid = GRIDSIDENUM / 2 + 1;
 		y_mid = GRIDSIDENUM / 2;

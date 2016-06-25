@@ -3,7 +3,7 @@
 #ifdef raindrop
 #define GRIDSIDENUM 64
 #define GRIDLENGTH 100.0
-#define INITSPEED 30.0
+#define INITSPEED 10.0
 #define ALPHASQUARE 7.0
 #define TIMEINTERVAL 0.005
 #define SIGMA 1.0
