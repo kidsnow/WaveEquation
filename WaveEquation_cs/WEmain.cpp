@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
+//#define CUDA
 //#define CPU_COMPUTE
 
 #include <stdio.h>
@@ -9,18 +10,15 @@
 #include <math.h>
 
 #include "WEmain.h"
-#include "WEcpu.h"
+#include "WEgpu.h"
 
 // Begin of shader setup
 #include "Shaders/LoadShaders.h"
 GLuint h_ShaderProgram, ComputeShaderProgram; // handle to shader program
 GLint loc_ModelViewProjectionMatrix, loc_primitive_color; // indices of uniform variables
-GLint loc_a, loc_b, loc_c, loc_d, loc_e;
+GLint loc_a, loc_b, loc_c;
 int gridTotalNum = GRIDSIDENUM*GRIDSIDENUM;
 int turn = 0, result = 0;
-
-int rain_flag = 0;
-int input_idx = 0;
 
 float beta, diag_el_of_A;
 float time_interval = TIMEINTERVAL;
@@ -127,14 +125,13 @@ void prepare_shader_program(void) {
 		{ GL_NONE, NULL }
 	};
 
+#ifndef CUDA
 	ComputeShaderProgram = LoadShaders(cs_shader_info);
 	//glUseProgram(ComputeShaderProgram);
 	loc_a = glGetUniformLocation(ComputeShaderProgram, "diag_el_of_A");
 	loc_b = glGetUniformLocation(ComputeShaderProgram, "beta");
 	loc_c = glGetUniformLocation(ComputeShaderProgram, "grid_size");
-	loc_d = glGetUniformLocation(ComputeShaderProgram, "rain_flag");
-	loc_e = glGetUniformLocation(ComputeShaderProgram, "input_idx");
-
+#endif
 }
 // End of shader setup
 // Begin of geometry setup
@@ -311,6 +308,12 @@ void prepare_grid(void){
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
 
+	for (int i = 1; i < GRIDSIDENUM; i++){
+		for (int j = 0; j < GRIDSIDENUM - 1; j++){
+			int idx = GRIDSIDENUM * (i + 1) + j;
+			grid0[idx].y = 0;
+		}
+	}
 	//element indices
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elBuf);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GridIndices), &GridIndices[0], GL_DYNAMIC_COPY);
@@ -329,10 +332,12 @@ void prepare_grid(void){
 	glBindVertexArray(0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+#ifndef CUDA
 	glUseProgram(ComputeShaderProgram);
 	glUniform1f(loc_a, diag_el_of_A);
 	glUniform1f(loc_b, beta);
 	glUniform1i(loc_c, grid_size);
+#endif
 }
 
 
@@ -403,16 +408,25 @@ void display(void) {
 		}
 	}
 #else
+#ifdef CUDA
+	for (int i = 0; i < iteration; i++){
+		QueryPerformanceCounter(&start);
+		if (turn % 2 == 0)
+			callComputeWave(diag_el_of_A, beta, grid_size, grid1, grid0);
+		else if (turn % 2 == 1)
+			callComputeWave(diag_el_of_A, beta, grid_size, grid0, grid1);
+		QueryPerformanceCounter(&end);
+		__int64 micro_interval = (end.QuadPart - start.QuadPart) / (f.QuadPart / 1000000);
+		total_time += micro_interval;
+		count++;
+		if (count == 50000)
+			printf("%f\n", (float)total_time / (float)count);
+		result = (turn + 1) % 2;
+		turn++;
+	}
+#else
 	glUseProgram(ComputeShaderProgram);
 	for (int i = 0; i < iteration; i++){
-		input_idx = rand() % GRIDSIDENUM*GRIDSIDENUM;
-		if (count % 30000 == 0)
-			rain_flag = 1;
-		else
-			rain_flag = 0;
-		input_idx += GRIDSIDENUM;
-		glUniform1i(loc_d, rain_flag);
-		glUniform1i(loc_e, input_idx);
 		QueryPerformanceCounter(&start);
 		glDispatchCompute(GRIDSIDENUM / 8, GRIDSIDENUM / 8, 1);
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -428,6 +442,7 @@ void display(void) {
 		result = (turn + 1) % 2;
 		turn++;
 	}
+#endif
 #endif
 	glUseProgram(h_ShaderProgram);
 	//ModelViewProjectionMatrix = glm::scale(ViewProjectionMatrix, glm::vec3(3.0f, 3.0f, 3.0f));
@@ -446,6 +461,100 @@ void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case 27: // ESC key
 		glutLeaveMainLoop(); // Incur destuction callback for cleanups.
+		break;
+	case 'r':
+
+		//grid vertex initialization
+		for (int i = 0; i < GRIDSIDENUM + 2; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM*i + j;
+				grid0[idx].y = 0.0f;
+				grid1[idx].y = 0.0f;
+				grid0[idx].w = 0.0f;
+				grid1[idx].w = 0.0f;
+			}
+		}
+
+		for (int i = 0; i < GRIDSIDENUM; i++){
+			for (int j = 0; j < GRIDSIDENUM; j++){
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].x = j*GRIDLENGTH / GRIDSIDENUM;
+				grid0[idx].y = 0.0f;
+				grid0[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
+				grid0[idx].w = 1.0f;
+
+				grid1[idx].x = j*GRIDLENGTH / GRIDSIDENUM;
+				grid1[idx].y = 0.0f;
+				grid1[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
+				grid1[idx].w = 1.0f;
+			}
+		}
+		//grid1[GRIDSIDENUM*GRIDSIDENUM / 3 - GRIDSIDENUM / 3].y = INITSPEED * TIMEINTERVAL;
+#ifdef RAINFALL
+		int x_mid = GRIDSIDENUM * 1 / 4 + 1;
+		int y_mid = GRIDSIDENUM * 3 / 4;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+		x_mid = GRIDSIDENUM / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+		x_mid = GRIDSIDENUM * 2 / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+		x_mid = GRIDSIDENUM * 2 / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+		x_mid = GRIDSIDENUM / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+		x_mid = GRIDSIDENUM / 3 + 1;
+		y_mid = GRIDSIDENUM / 3;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y += (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+#else
+		int x_mid = GRIDSIDENUM / 2 + 1;
+		int y_mid = GRIDSIDENUM / 2;
+		for (int i = 0; i < GRIDSIDENUM; i++) {
+			for (int j = 0; j < GRIDSIDENUM; j++) {
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y = (pow(EEE, (-1)*(((i - x_mid) * (i - x_mid) + (j - y_mid) * (j - y_mid))) / (2 * SIGMA*SIGMA))) / (2 * PI*SIGMA*SIGMA) * INITSPEED * TIMEINTERVAL;
+			}
+		}
+#endif
+		//triangle mesh initialization			INDEXING!!!
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
 		break;
 	}
 }

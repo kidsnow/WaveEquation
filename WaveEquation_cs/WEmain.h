@@ -9,12 +9,9 @@
 #define SIGMA 1.0
 #define PI 3.1415926535
 #define EEE 2.71828182
-#define WAITFOR 3000
+#define WAITFOR 0
 #define RAINFALL
 
-struct Grid{
-	float x, y, z, w;
-};
 #endif
 
 #ifdef wave
