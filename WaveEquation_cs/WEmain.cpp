@@ -479,6 +479,25 @@ void keyboard(unsigned char key, int x, int y) {
 	case 27: // ESC key
 		glutLeaveMainLoop(); // Incur destuction callback for cleanups.
 		break;
+	case 's':
+		for (int i = 0; i < GRIDSIDENUM; i++){
+			for (int j = 0; j < GRIDSIDENUM; j++){
+				int idx = GRIDSIDENUM * (i + 1) + j;
+				grid0[idx].y = 0.0f;
+				grid1[idx].y = 0.0f;
+				grid2[idx].y = 0.0f;
+				grid3[idx].y = 0.0f;
+			}
+		}
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridBuf2);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+		break;
 	case 't':
 #ifdef RAINFALL
 		x_mid = rand() * 1000 % GRIDSIDENUM;
