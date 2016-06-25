@@ -176,7 +176,7 @@ void draw_axes(void) {
 	glBindVertexArray(0);
 }
 
-struct Grid grid0[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid1[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid2[GRIDSIDENUM*GRIDSIDENUM];
+struct Grid grid0[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid1[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid2[GRIDSIDENUM*(GRIDSIDENUM + 2)];
 GLuint bufs[4], gridBuf0, gridBuf1, gridBuf2, elBuf, grid_VBO, grid_VAO, textureName;
 GLuint GridIndices[(GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 6];
 int triangleNum = (GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 2;
@@ -190,8 +190,10 @@ void prepare_grid(void){
 			int idx = GRIDSIDENUM*i + j;
 			grid0[idx].y = 0.0f;
 			grid1[idx].y = 0.0f;
+			grid2[idx].y = 0.0f;
 			grid0[idx].w = 0.0f;
 			grid1[idx].w = 0.0f;
+			grid2[idx].w = 0.0f;
 		}
 	}
 
@@ -207,6 +209,11 @@ void prepare_grid(void){
 			grid1[idx].y = 0.0f;
 			grid1[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
 			grid1[idx].w = 1.0f;
+
+			grid2[idx].x = j*GRIDLENGTH / GRIDSIDENUM;
+			grid2[idx].y = 0.0f;
+			grid2[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
+			grid2[idx].w = 1.0f;
 		}
 	}
 	//grid1[GRIDSIDENUM*GRIDSIDENUM / 3 - GRIDSIDENUM / 3].y = INITSPEED * TIMEINTERVAL;
@@ -298,22 +305,19 @@ void prepare_grid(void){
 	beta = ALPHASQUARE*time_interval*time_interval / (h*h);
 	diag_el_of_A = 1 + 4 * beta;
 
-	glGenBuffers(3, bufs);
+	glGenBuffers(4, bufs);
 	gridBuf0 = bufs[0];
 	gridBuf1 = bufs[1];
-	elBuf = bufs[2];
+	gridBuf2 = bufs[2];
+	elBuf = bufs[3];
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridBuf2);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
 
-	for (int i = 1; i < GRIDSIDENUM; i++){
-		for (int j = 0; j < GRIDSIDENUM - 1; j++){
-			int idx = GRIDSIDENUM * (i + 1) + j;
-			grid0[idx].y = 0;
-		}
-	}
 	//element indices
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elBuf);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GridIndices), &GridIndices[0], GL_DYNAMIC_COPY);
@@ -470,8 +474,10 @@ void keyboard(unsigned char key, int x, int y) {
 				int idx = GRIDSIDENUM*i + j;
 				grid0[idx].y = 0.0f;
 				grid1[idx].y = 0.0f;
+				grid2[idx].y = 0.0f;
 				grid0[idx].w = 0.0f;
 				grid1[idx].w = 0.0f;
+				grid2[idx].w = 0.0f;
 			}
 		}
 
@@ -487,6 +493,11 @@ void keyboard(unsigned char key, int x, int y) {
 				grid1[idx].y = 0.0f;
 				grid1[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
 				grid1[idx].w = 1.0f;
+
+				grid2[idx].x = j*GRIDLENGTH / GRIDSIDENUM;
+				grid2[idx].y = 0.0f;
+				grid2[idx].z = i*GRIDLENGTH / GRIDSIDENUM;
+				grid2[idx].w = 1.0f;
 			}
 		}
 		//grid1[GRIDSIDENUM*GRIDSIDENUM / 3 - GRIDSIDENUM / 3].y = INITSPEED * TIMEINTERVAL;
