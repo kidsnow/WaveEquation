@@ -14,7 +14,7 @@
 
 // Begin of shader setup
 #include "Shaders/LoadShaders.h"
-GLuint h_ShaderProgram, ComputeShaderProgram; // handle to shader program
+GLuint h_ShaderProgram, ComputeShaderProgram, h_ShaderProgram_texture; // handle to shader program
 GLint loc_ModelViewProjectionMatrix, loc_primitive_color; // indices of uniform variables
 GLint loc_a, loc_b, loc_c;
 int gridTotalNum = GRIDSIDENUM*GRIDSIDENUM;
@@ -118,7 +118,6 @@ void prepare_shader_program(void) {
 	loc_ModelViewProjectionMatrix = glGetUniformLocation(h_ShaderProgram, "u_ModelViewProjectionMatrix");
 	loc_primitive_color = glGetUniformLocation(h_ShaderProgram, "u_primitive_color");
 
-
 	ShaderInfo cs_shader_info[2] = {
 		{ GL_COMPUTE_SHADER, "Shaders/wecs.comp" },
 		{ GL_NONE, NULL }
@@ -131,6 +130,14 @@ void prepare_shader_program(void) {
 	loc_b = glGetUniformLocation(ComputeShaderProgram, "beta");
 	loc_c = glGetUniformLocation(ComputeShaderProgram, "grid_size");
 #endif
+
+	ShaderInfo shader_info_texture[3] = {
+		{ GL_VERTEX_SHADER, "Shaders/texture.vert" },
+		{ GL_FRAGMENT_SHADER, "Shaders/texture.frag" },
+		{ GL_NONE, NULL }
+	};
+
+	h_ShaderProgram_texture = LoadShaders(shader_info_texture);
 }
 // End of shader setup
 // Begin of geometry setup
@@ -175,12 +182,51 @@ void draw_axes(void) {
 	glBindVertexArray(0);
 }
 
+GLfloat vVertices[] = {
+	-1.0f, -1.0f, 1.0f, 0.0f, 0.0f,
+	1.0f, -1.0f, 1.0f, 1.0f, 0.0f,
+	1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+	-1.0f, -1.0f, 1.0f, 0.0f, 0.0f,
+	1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+};
+GLuint shadow_VBO;
+GLuint shadow_VAO;
+
+void draw_texture()
+{
+	glDisable(GL_DEPTH_TEST);
+
+	glBindVertexArray(shadow_VAO);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindVertexArray(0);
+
+	glEnable(GL_DEPTH_TEST);
+}
+
 struct Grid grid0[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid1[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid2[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid3[GRIDSIDENUM*(GRIDSIDENUM + 2)];
 GLuint bufs[5], gridBuf0, gridBuf1, gridBuf2, gridBuf3, elBuf, grid_VBO, grid_VAO, textureName;
 GLuint GridIndices[(GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 6];
 int triangleNum = (GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 2;
 int trianglePointNum = triangleNum * 3;
 int gridMaxIdx = 0;
+
+void prepare_texture(void) {
+	glGenBuffers(1, &shadow_VBO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, shadow_VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vVertices), vVertices, GL_STATIC_DRAW);
+
+	glGenVertexArrays(1, &shadow_VAO);
+
+	glBindVertexArray(shadow_VAO);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat)* 5, BUFFER_OFFSET(0));
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat)* 5, BUFFER_OFFSET(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	glBindVertexArray(0);
+}
 
 void prepare_grid(void){
 	//grid vertex initialization
@@ -394,6 +440,7 @@ int flag_fill_floor = 0;
 
 int count = 0;
 int total_time = 0.0;
+int window_width, window_height;
 void display(void) {
 	LARGE_INTEGER seed;
 	QueryPerformanceCounter(&seed);
@@ -401,9 +448,10 @@ void display(void) {
 	LARGE_INTEGER start, end, f;
 	QueryPerformanceFrequency(&f);
 
+	glViewport(0, 0, window_width - 800, window_height);
+	glClearColor(0.4f, 0.4f, 1.0f, 1.0f); // CYAN
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	int iteration = ITERNUM;
 #ifdef CPU_COMPUTE
 	//cpu computing
@@ -469,6 +517,14 @@ void display(void) {
 	//draw_axes();
 	glLineWidth(1.0f);
 	draw_grid();
+
+
+	glViewport(window_width-800, 0, 800, window_height);
+	glUseProgram(h_ShaderProgram_texture);
+	glClearDepth(1.0);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	glLineWidth(10.0f);
+	draw_texture();
 
 	glutSwapBuffers();
 }
@@ -647,9 +703,11 @@ void mousepress(int button, int state, int x, int y)  {
 
 void reshape(int width, int height) {
 	float aspect_ratio;
-	glViewport(0, 0, width, height);
+	glViewport(0, 0, width - 800, height);
+	window_width = width;
+	window_height = height;
 
-	aspect_ratio = (float)width / height;
+	aspect_ratio = (float)(width - 800) / height;
 	ProjectionMatrix = glm::perspective(15.0f*TO_RADIAN, aspect_ratio, 1.0f, 1000.0f);
 
 	ViewProjectionMatrix = ProjectionMatrix * ViewMatrix;
@@ -692,6 +750,7 @@ void initialize_OpenGL(void) {
 void prepare_scene(void) {
 	prepare_axes();
 	prepare_grid();
+	prepare_texture();
 }
 
 void initialize_renderer(void) {
@@ -742,7 +801,7 @@ void main(int argc, char *argv[]) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
-	glutInitWindowSize(1200, 800);
+	glutInitWindowSize(2000, 800);
 	glutInitContextVersion(4, 0);
 	glutInitContextProfile(GLUT_CORE_PROFILE);
 	glutCreateWindow(program_name);
