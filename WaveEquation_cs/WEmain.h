@@ -1,4 +1,5 @@
-#define wave
+#define CUDA
+#define raindrop
 
 #ifdef raindrop
 #define GRIDSIDENUM 64

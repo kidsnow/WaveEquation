@@ -1,5 +1,4 @@
 #define _CRT_SECURE_NO_WARNINGS
-//#define CUDA
 //#define CPU_COMPUTE
 
 #include <stdio.h>
@@ -11,6 +10,7 @@
 
 #include "WEmain.h"
 #include "WEgpu.h"
+#include <cuda_gl_interop.h>
 
 // Begin of shader setup
 #include "Shaders/LoadShaders.h"
@@ -26,6 +26,7 @@ int grid_size = GRIDSIDENUM;
 float grid_length = GRIDLENGTH;
 float h = GRIDLENGTH / GRIDSIDENUM;
 
+struct cudaGraphicsResource *cuda_pos0_resource, *cuda_pos1_resource, *cuda_pos2_resource, *cuda_pos3_resource;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 void WEGaussSeidel(Grid grid0[], Grid grid1[], Grid grid2[]){
@@ -396,6 +397,21 @@ void prepare_grid(void){
 	elBuf = bufs[4];
 	elBuf2 = bufs[5];
 
+#ifdef CUDA
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf0);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf1);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf2);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+
+	cudaGraphicsGLRegisterBuffer(&cuda_pos0_resource, gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
+	cudaGraphicsGLRegisterBuffer(&cuda_pos1_resource, gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
+	cudaGraphicsGLRegisterBuffer(&cuda_pos2_resource, gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
+	cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+#else
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
@@ -404,7 +420,7 @@ void prepare_grid(void){
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
-
+#endif
 	//element indices
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elBuf);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GridIndices), &GridIndices[0], GL_DYNAMIC_COPY);
@@ -468,7 +484,27 @@ glm::mat4 ModelViewProjectionMatrix; // This one is sent to vertex shader when r
 float rotation_angle_tiger = 0.0f, rotation_angle_cow = 0.0f;
 int flag_fill_floor = 0;
 
+void cudaRender() {
+	float4 *pos0_out = 0, *pos1_out = 0, *pos2_out = 0, *pos3_out = 0;
 
+	cudaGraphicsMapResources(1, &cuda_pos0_resource, 0);
+	cudaGraphicsMapResources(1, &cuda_pos1_resource, 0);
+	cudaGraphicsMapResources(1, &cuda_pos2_resource, 0);
+	cudaGraphicsMapResources(1, &cuda_pos3_resource, 0);
+
+	cudaGraphicsResourceGetMappedPointer((void **)&pos0_out, NULL, cuda_pos0_resource);
+	cudaGraphicsResourceGetMappedPointer((void **)&pos1_out, NULL, cuda_pos1_resource);
+	cudaGraphicsResourceGetMappedPointer((void **)&pos2_out, NULL, cuda_pos2_resource);
+	cudaGraphicsResourceGetMappedPointer((void **)&pos3_out, NULL, cuda_pos3_resource);
+
+	callComputeWave(pos0_out, pos1_out, pos2_out, pos3_out, diag_el_of_A, beta, grid_size);
+	//normalkernelLauncher(pos0_out, norm_out, nPoint_x, nPoint_y);
+
+	cudaGraphicsUnmapResources(1, &cuda_pos0_resource, 0);
+	cudaGraphicsUnmapResources(1, &cuda_pos1_resource, 0);
+	cudaGraphicsUnmapResources(1, &cuda_pos2_resource, 0);
+	cudaGraphicsUnmapResources(1, &cuda_pos3_resource, 0);
+}
 
 #include <windows.h>
 #include <winbase.h>
@@ -511,10 +547,9 @@ void display(void) {
 #ifdef CUDA
 	for (int i = 0; i < iteration; i++){
 		QueryPerformanceCounter(&start);
-		if (turn % 2 == 0)
-			callComputeWave(diag_el_of_A, beta, grid_size, grid1, grid0);
-		else if (turn % 2 == 1)
-			callComputeWave(diag_el_of_A, beta, grid_size, grid0, grid1);
+		
+		//cudaRender();
+
 		QueryPerformanceCounter(&end);
 		__int64 micro_interval = (end.QuadPart - start.QuadPart) / (f.QuadPart / 1000000);
 		total_time += micro_interval;
@@ -534,7 +569,7 @@ void display(void) {
 		__int64 micro_interval = (end.QuadPart - start.QuadPart) / (f.QuadPart / 1000000);
 		total_time += micro_interval;
 		count++;
-		if (count == 50000)
+		if (count == 500)
 			printf("%f\n", (float)total_time / (float)count);
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, bufs[turn % 3]);
