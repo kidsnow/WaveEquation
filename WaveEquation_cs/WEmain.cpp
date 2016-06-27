@@ -15,7 +15,7 @@
 // Begin of shader setup
 #include "Shaders/LoadShaders.h"
 GLuint h_ShaderProgram, ComputeShaderProgram, h_ShaderProgram_texture; // handle to shader program
-GLint loc_ModelViewProjectionMatrix, loc_primitive_color; // indices of uniform variables
+GLint loc_ModelViewProjectionMatrix, loc_ModelViewProjectionMatrix2, loc_primitive_color, loc_scale; // indices of uniform variables
 GLint loc_a, loc_b, loc_c;
 int gridTotalNum = GRIDSIDENUM*GRIDSIDENUM;
 int turn = 0, result = 0;
@@ -138,6 +138,8 @@ void prepare_shader_program(void) {
 	};
 
 	h_ShaderProgram_texture = LoadShaders(shader_info_texture);
+	loc_ModelViewProjectionMatrix2 = glGetUniformLocation(h_ShaderProgram_texture, "u_ModelViewProjectionMatrix");
+	loc_scale = glGetUniformLocation(h_ShaderProgram_texture, "u_scale");
 }
 // End of shader setup
 // Begin of geometry setup
@@ -190,26 +192,26 @@ GLfloat vVertices[] = {
 	1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
 	-1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
 };
-GLuint shadow_VBO;
-GLuint shadow_VAO;
+struct Grid grid0[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid1[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid2[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid3[GRIDSIDENUM*(GRIDSIDENUM + 2)];
+GLuint bufs[6], gridBuf0, gridBuf1, gridBuf2, gridBuf3, elBuf, elBuf2, grid_VBO, grid_VAO, shadow_VBO, shadow_VAO;
+GLuint GridIndices[(GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 6];
+GLuint GridIndices2[(GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 12];
+int triangleNum = (GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 2;
+int trianglePointNum = triangleNum * 3;
+int gridMaxIdx = 0, gridMaxIdx2 = 0;
 
 void draw_texture()
 {
 	glDisable(GL_DEPTH_TEST);
 
 	glBindVertexArray(shadow_VAO);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDrawElements(GL_TRIANGLES, gridMaxIdx2, GL_UNSIGNED_INT, BUFFER_OFFSET(0));
 	glBindVertexArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	glEnable(GL_DEPTH_TEST);
 }
-
-struct Grid grid0[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid1[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid2[GRIDSIDENUM*(GRIDSIDENUM + 2)], grid3[GRIDSIDENUM*(GRIDSIDENUM + 2)];
-GLuint bufs[5], gridBuf0, gridBuf1, gridBuf2, gridBuf3, elBuf, grid_VBO, grid_VAO, textureName;
-GLuint GridIndices[(GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 6];
-int triangleNum = (GRIDSIDENUM - 1)*(GRIDSIDENUM - 1) * 2;
-int trianglePointNum = triangleNum * 3;
-int gridMaxIdx = 0;
 
 void prepare_texture(void) {
 	glGenBuffers(1, &shadow_VBO);
@@ -220,10 +222,16 @@ void prepare_texture(void) {
 	glGenVertexArrays(1, &shadow_VAO);
 
 	glBindVertexArray(shadow_VAO);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat)* 5, BUFFER_OFFSET(0));
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat)* 5, BUFFER_OFFSET(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
+
+	glBindBuffer(GL_ARRAY_BUFFER, gridBuf1);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+	glEnableVertexAttribArray(INDEX_VERTEX_POSITION);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elBuf2);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	glBindVertexArray(0);
 }
@@ -268,6 +276,7 @@ void prepare_grid(void){
 			grid3[idx].w = 1.0f;
 		}
 	}
+
 	//grid1[GRIDSIDENUM*GRIDSIDENUM / 3 - GRIDSIDENUM / 3].y = INITSPEED * TIMEINTERVAL;
 #ifdef RAINFALL
 	int x_mid = GRIDSIDENUM * 1 / 4 + 1;
@@ -354,15 +363,38 @@ void prepare_grid(void){
 		gridMaxIdx++;
 	}
 
+	for (int i = 1; i < GRIDSIDENUM; i++){
+		for (int j = 0; j < GRIDSIDENUM - 1; j++){
+			int idx = i*GRIDSIDENUM + j;
+			GridIndices2[gridMaxIdx2] = idx;
+			gridMaxIdx2++;
+			GridIndices2[gridMaxIdx2] = idx + 1;
+			gridMaxIdx2++;
+			GridIndices2[gridMaxIdx2] = idx + GRIDSIDENUM;
+			gridMaxIdx2++;
+			GridIndices2[gridMaxIdx2] = idx + 1;
+			gridMaxIdx2++;
+			GridIndices2[gridMaxIdx2] = idx + 1 + GRIDSIDENUM;
+			gridMaxIdx2++;
+			GridIndices2[gridMaxIdx2] = idx + GRIDSIDENUM;
+			gridMaxIdx2++;
+		}
+	}
+
+	/*for (int i = 1; i < GRIDSIDENUM; i++) {
+		GridIndices[i] = ;
+	}*/
+
 	beta = ALPHASQUARE*time_interval*time_interval / (h*h);
 	diag_el_of_A = 1 + 4 * beta;
 
-	glGenBuffers(5, bufs);
+	glGenBuffers(6, bufs);
 	gridBuf0 = bufs[0];
 	gridBuf1 = bufs[1];
 	gridBuf2 = bufs[2];
 	gridBuf3 = bufs[3];
 	elBuf = bufs[4];
+	elBuf2 = bufs[5];
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
@@ -376,6 +408,10 @@ void prepare_grid(void){
 	//element indices
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elBuf);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GridIndices), &GridIndices[0], GL_DYNAMIC_COPY);
+
+	//element indices
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elBuf2);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GridIndices2), &GridIndices2[0], GL_DYNAMIC_COPY);
 
 	// Initialize vertex array object.
 	glGenVertexArrays(1, &grid_VAO);
@@ -425,7 +461,7 @@ void draw_grid(void) {
 // #include <glm/glm.hpp> 
 #include <glm/gtc/matrix_transform.hpp> //translate, rotate, scale, lookAt, perspective, etc.
 // ViewProjectionMatrix = ProjectionMatrix * ViewMatrix
-glm::mat4 ViewProjectionMatrix, ViewMatrix, ProjectionMatrix;
+glm::mat4 ViewProjectionMatrix, ViewMatrix, ProjectionMatrix, ViewProjectionMatrix2, ViewMatrix2, ProjectionMatrix2;
 // ModelViewProjectionMatrix = ProjectionMatrix * ViewMatrix * ModelMatrix
 glm::mat4 ModelViewProjectionMatrix; // This one is sent to vertex shader when ready.
 
@@ -448,6 +484,7 @@ void display(void) {
 	LARGE_INTEGER start, end, f;
 	QueryPerformanceFrequency(&f);
 
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	glViewport(0, 0, window_width - 800, window_height);
 	glClearColor(0.4f, 0.4f, 1.0f, 1.0f); // CYAN
 
@@ -518,12 +555,14 @@ void display(void) {
 	glLineWidth(1.0f);
 	draw_grid();
 
-
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glViewport(window_width-800, 0, 800, window_height);
 	glUseProgram(h_ShaderProgram_texture);
 	glClearDepth(1.0);
 	glClear(GL_DEPTH_BUFFER_BIT);
-	glLineWidth(10.0f);
+	glUniformMatrix4fv(loc_ModelViewProjectionMatrix2, 1, GL_FALSE, &ViewProjectionMatrix2[0][0]);
+	GLfloat scale = SCALE;
+	glUniform1f(loc_scale, scale);
 	draw_texture();
 
 	glutSwapBuffers();
@@ -559,7 +598,6 @@ void keyboard(unsigned char key, int x, int y) {
 		x_mid = rand() * 1000 % GRIDSIDENUM;
 		y_mid = rand() * 1000 % GRIDSIDENUM;
 		speed = (1.0 + (0.5 - (rand() % 5) * 0.1)) * INITSPEED;
-		printf("%f\n", speed);
 		for (int i = 0; i < GRIDSIDENUM; i++) {
 			for (int j = 0; j < GRIDSIDENUM; j++) {
 				int idx = GRIDSIDENUM * (i + 1) + j;
@@ -739,12 +777,19 @@ void register_callbacks(void) {
 
 void initialize_OpenGL(void) {
 	glClearColor(0.4f, 0.4f, 1.0f, 1.0f); // CYAN
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 	glEnable(GL_DEPTH_TEST);
 
 	ViewMatrix = glm::lookAt(glm::vec3(200.0f, 100.0f, 200.0f), glm::vec3(GRIDLENGTH / 2, 0.0f, GRIDLENGTH / 2),
 		glm::vec3(0.0f, 1.0f, 0.0f));
+
+	ViewMatrix2 = glm::lookAt(glm::vec3(48.4375f, 100.0f, 48.4375f), glm::vec3(48.4375f, 0.0f, 48.4375f),
+		glm::vec3(-1.0f, 0.0f, 0.0f));
+
+	ProjectionMatrix2 = glm::ortho(-48.4375f, 48.4375f, -48.4375f, 48.4375f);
+	ProjectionMatrix2[2][2] = 0.0;
+	ViewProjectionMatrix2 = ProjectionMatrix2 * ViewMatrix2;
 }
 
 void prepare_scene(void) {

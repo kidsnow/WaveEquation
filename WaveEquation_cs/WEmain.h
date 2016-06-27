@@ -1,4 +1,4 @@
-#define raindrop
+#define wave
 
 #ifdef raindrop
 #define GRIDSIDENUM 64
@@ -12,6 +12,7 @@
 #define WAITFOR 0
 #define RAINFALL
 #define ITERNUM 30
+#define SCALE 5.0
 
 #endif
 
@@ -26,6 +27,7 @@
 #define EEE 2.71828182
 #define WAITFOR 0
 #define ITERNUM 300
+#define SCALE 20.0
 #endif
 
 ////점성이 약한 매질
