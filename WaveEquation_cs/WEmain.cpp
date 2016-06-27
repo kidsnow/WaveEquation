@@ -399,13 +399,13 @@ void prepare_grid(void){
 
 #ifdef CUDA
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf0);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf1);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf2);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
 
 	cudaGraphicsGLRegisterBuffer(&cuda_pos0_resource, gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
 	cudaGraphicsGLRegisterBuffer(&cuda_pos1_resource, gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
@@ -498,7 +498,6 @@ void cudaRender() {
 	cudaGraphicsResourceGetMappedPointer((void **)&pos3_out, NULL, cuda_pos3_resource);
 
 	callComputeWave(pos0_out, pos1_out, pos2_out, pos3_out, diag_el_of_A, beta, grid_size);
-	//normalkernelLauncher(pos0_out, norm_out, nPoint_x, nPoint_y);
 
 	cudaGraphicsUnmapResources(1, &cuda_pos0_resource, 0);
 	cudaGraphicsUnmapResources(1, &cuda_pos1_resource, 0);
@@ -514,6 +513,8 @@ int count = 0;
 int total_time = 0.0;
 int window_width, window_height;
 void display(void) {
+	static int nbFrames = 0;
+	double lastTime = glutGet(GLUT_ELAPSED_TIME);
 	LARGE_INTEGER seed;
 	QueryPerformanceCounter(&seed);
 	srand(seed.QuadPart);
@@ -545,32 +546,12 @@ void display(void) {
 	}
 #else
 #ifdef CUDA
-	for (int i = 0; i < iteration; i++){
-		QueryPerformanceCounter(&start);
-		
-		//cudaRender();
-
-		QueryPerformanceCounter(&end);
-		__int64 micro_interval = (end.QuadPart - start.QuadPart) / (f.QuadPart / 1000000);
-		total_time += micro_interval;
-		count++;
-		if (count == 50000)
-			printf("%f\n", (float)total_time / (float)count);
-		result = (turn + 1) % 2;
-		turn++;
-	}
+	cudaRender();
 #else
 	glUseProgram(ComputeShaderProgram);
 	for (int i = 0; i < iteration; i++){
-		QueryPerformanceCounter(&start);
 		glDispatchCompute(GRIDSIDENUM / 8, GRIDSIDENUM / 8, 1);
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-		QueryPerformanceCounter(&end);
-		__int64 micro_interval = (end.QuadPart - start.QuadPart) / (f.QuadPart / 1000000);
-		total_time += micro_interval;
-		count++;
-		if (count == 500)
-			printf("%f\n", (float)total_time / (float)count);
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, bufs[turn % 3]);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, bufs[(turn + 1) % 3]);
@@ -601,6 +582,11 @@ void display(void) {
 	draw_texture();
 
 	glutSwapBuffers();
+
+	double currTime = glutGet(GLUT_ELAPSED_TIME);
+	total_time += currTime - lastTime;
+	count++;
+	printf("%d\n", total_time / count);
 }
 int x_mid, y_mid;
 float speed;
@@ -619,6 +605,21 @@ void keyboard(unsigned char key, int x, int y) {
 				grid3[idx].y = 0.0f;
 			}
 		}
+#ifdef CUDA
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf0);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf1);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf2);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+
+		cudaGraphicsGLRegisterBuffer(&cuda_pos0_resource, gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_pos1_resource, gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_pos2_resource, gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+#else
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
@@ -627,6 +628,7 @@ void keyboard(unsigned char key, int x, int y) {
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+#endif
 		break;
 	case 't':
 #ifdef RAINFALL
@@ -649,8 +651,14 @@ void keyboard(unsigned char key, int x, int y) {
 			}
 		}
 #endif
+#ifdef CUDA
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+		cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+#else
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+#endif
 		break;
 	case 'r':
 
@@ -751,6 +759,21 @@ void keyboard(unsigned char key, int x, int y) {
 		}
 		//triangle mesh initialization			INDEXING!!!
 
+#ifdef CUDA
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf0);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf1);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid1), &grid1[0], GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf2);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+
+		cudaGraphicsGLRegisterBuffer(&cuda_pos0_resource, gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_pos1_resource, gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_pos2_resource, gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+#else
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gridBuf1);
@@ -759,6 +782,7 @@ void keyboard(unsigned char key, int x, int y) {
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid2), &grid2[0], GL_DYNAMIC_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
+#endif
 		break;
 	}
 }

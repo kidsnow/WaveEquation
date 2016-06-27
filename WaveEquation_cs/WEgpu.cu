@@ -32,5 +32,6 @@ void computeWave(float4 *previous, float4 *current, float4 *previousOfPrevious, 
 void callComputeWave(float4 *pos0_out, float4 *pos1_out, float4 *pos2_out, float4 *pos3_out, float diag_el_of_A, float beta, int grid_size) {
 	const dim3 blockSize(BLOCK_X, BLOCK_Y);
 	const dim3 gridSize = dim3((64 + BLOCK_X - 1) / BLOCK_X, (66 + BLOCK_Y - 1) / BLOCK_Y);
-	computeWave <<<gridSize, blockSize>>>(pos0_out, pos1_out, pos2_out, pos2_out, diag_el_of_A, beta, grid_size);
+	for (int i = 0; i < ITERNUM; i ++)
+		computeWave <<<gridSize, blockSize>>>(pos0_out, pos1_out, pos2_out, pos3_out, diag_el_of_A, beta, grid_size);
 }
