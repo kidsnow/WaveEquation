@@ -25,13 +25,17 @@ void computeWave(float4 *previous, float4 *current, float4 *previousOfPrevious, 
 		current[idx].y += moreEffects[idx].y;
 		moreEffects[idx].y = 0;
 	}
-	previousOfPrevious[idx] = previous[idx];
-	previous[idx] = current[idx];
 }
 
-void callComputeWave(float4 *pos0_out, float4 *pos1_out, float4 *pos2_out, float4 *pos3_out, float diag_el_of_A, float beta, int grid_size) {
+int turn2 = 0;
+
+void callComputeWave(float4 **pos_out, float diag_el_of_A, float beta, int grid_size) {
+	int deviceCount; cudaGetDeviceCount(&deviceCount); int device; for (device = 0; device < deviceCount; ++device) { cudaDeviceProp deviceProp; cudaGetDeviceProperties(&deviceProp, device); printf("Device %d has compute capability %d.%d.\n", device, deviceProp.major, deviceProp.minor); }
+
 	const dim3 blockSize(BLOCK_X, BLOCK_Y);
-	const dim3 gridSize = dim3((64 + BLOCK_X - 1) / BLOCK_X, (66 + BLOCK_Y - 1) / BLOCK_Y);
-	for (int i = 0; i < ITERNUM; i ++)
-		computeWave <<<gridSize, blockSize>>>(pos0_out, pos1_out, pos2_out, pos3_out, diag_el_of_A, beta, grid_size);
+	const dim3 gridSize = dim3(64 / BLOCK_X, 64 / BLOCK_Y);
+	for (int i = 0; i < ITERNUM; i++) {
+		computeWave <<<gridSize, blockSize>>>(pos_out[turn2 % 3], pos_out[(turn2+1) % 3], pos_out[(turn2+2) % 3], pos_out[3], diag_el_of_A, beta, grid_size);
+		turn2++;
+	}
 }

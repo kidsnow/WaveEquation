@@ -1,5 +1,6 @@
-#define CUDA
-#define raindrop
+//#define CUDA
+#define DOUBLE
+#define wave
 
 #ifdef raindrop
 #define GRIDSIDENUM 64

@@ -8,9 +8,16 @@
 #include <FreeImage/FreeImage.h>
 #include <math.h>
 
+#include "grid.h"
+#include "gridrenderer.h"
+
 #include "WEmain.h"
-#include "WEgpu.h"
-#include <cuda_gl_interop.h>
+//#include "WEgpu.h"
+//#include <cuda_gl_interop.h>
+
+struct Grid{
+	float x, y, z, w;
+};
 
 // Begin of shader setup
 #include "Shaders/LoadShaders.h"
@@ -26,7 +33,7 @@ int grid_size = GRIDSIDENUM;
 float grid_length = GRIDLENGTH;
 float h = GRIDLENGTH / GRIDSIDENUM;
 
-struct cudaGraphicsResource *cuda_pos0_resource, *cuda_pos1_resource, *cuda_pos2_resource, *cuda_pos3_resource;
+struct cudaGraphicsResource *cuda_resource[4];
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 void WEGaussSeidel(Grid grid0[], Grid grid1[], Grid grid2[]){
@@ -407,10 +414,10 @@ void prepare_grid(void){
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
 
-	cudaGraphicsGLRegisterBuffer(&cuda_pos0_resource, gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
-	cudaGraphicsGLRegisterBuffer(&cuda_pos1_resource, gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
-	cudaGraphicsGLRegisterBuffer(&cuda_pos2_resource, gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
-	cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+	cudaGraphicsGLRegisterBuffer(&cuda_resource[0], gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
+	cudaGraphicsGLRegisterBuffer(&cuda_resource[1], gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
+	cudaGraphicsGLRegisterBuffer(&cuda_resource[2], gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
+	cudaGraphicsGLRegisterBuffer(&cuda_resource[3], gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
 #else
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
@@ -484,26 +491,20 @@ glm::mat4 ModelViewProjectionMatrix; // This one is sent to vertex shader when r
 float rotation_angle_tiger = 0.0f, rotation_angle_cow = 0.0f;
 int flag_fill_floor = 0;
 
+#ifdef CUDA
 void cudaRender() {
-	float4 *pos0_out = 0, *pos1_out = 0, *pos2_out = 0, *pos3_out = 0;
+	float4 *pos_out[4];
 
-	cudaGraphicsMapResources(1, &cuda_pos0_resource, 0);
-	cudaGraphicsMapResources(1, &cuda_pos1_resource, 0);
-	cudaGraphicsMapResources(1, &cuda_pos2_resource, 0);
-	cudaGraphicsMapResources(1, &cuda_pos3_resource, 0);
+	cudaGraphicsMapResources(4, cuda_resource, 0);
 
-	cudaGraphicsResourceGetMappedPointer((void **)&pos0_out, NULL, cuda_pos0_resource);
-	cudaGraphicsResourceGetMappedPointer((void **)&pos1_out, NULL, cuda_pos1_resource);
-	cudaGraphicsResourceGetMappedPointer((void **)&pos2_out, NULL, cuda_pos2_resource);
-	cudaGraphicsResourceGetMappedPointer((void **)&pos3_out, NULL, cuda_pos3_resource);
+	for (int i = 0; i < 4; i ++)
+		cudaGraphicsResourceGetMappedPointer((void **)&pos_out[i], NULL, cuda_resource[i]);
 
-	callComputeWave(pos0_out, pos1_out, pos2_out, pos3_out, diag_el_of_A, beta, grid_size);
+	callComputeWave(pos_out, diag_el_of_A, beta, grid_size);
 
-	cudaGraphicsUnmapResources(1, &cuda_pos0_resource, 0);
-	cudaGraphicsUnmapResources(1, &cuda_pos1_resource, 0);
-	cudaGraphicsUnmapResources(1, &cuda_pos2_resource, 0);
-	cudaGraphicsUnmapResources(1, &cuda_pos3_resource, 0);
+	cudaGraphicsUnmapResources(4, cuda_resource, 0);
 }
+#endif
 
 #include <windows.h>
 #include <winbase.h>
@@ -513,8 +514,6 @@ int count = 0;
 int total_time = 0.0;
 int window_width, window_height;
 void display(void) {
-	static int nbFrames = 0;
-	double lastTime = glutGet(GLUT_ELAPSED_TIME);
 	LARGE_INTEGER seed;
 	QueryPerformanceCounter(&seed);
 	srand(seed.QuadPart);
@@ -522,8 +521,28 @@ void display(void) {
 	QueryPerformanceFrequency(&f);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glViewport(0, 0, window_width - 800, window_height);
+	glViewport(0, 0, window_width - window_height, window_height);
 	glClearColor(0.4f, 0.4f, 1.0f, 1.0f); // CYAN
+
+
+	// fps °è»ê.
+	static int nbFrames = 0;
+	static double lastTime = glutGet(GLUT_ELAPSED_TIME);
+	double currTime = glutGet(GLUT_ELAPSED_TIME);
+
+	nbFrames++;
+	if(currTime - lastTime >= 1000.0)
+	{
+		char buf[128];
+#ifdef CUDA
+		sprintf(buf, "Wave Equation with CUDA (GTX 690) : %.2f fps\n", double(nbFrames));
+#else
+		sprintf(buf, "Wave Equation with CS (GTX 690) : %.2f fps\n", double(nbFrames));
+#endif
+		glutSetWindowTitle(buf);
+		nbFrames = 0;
+		lastTime = currTime;
+	}
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	int iteration = ITERNUM;
@@ -572,7 +591,7 @@ void display(void) {
 	draw_grid();
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glViewport(window_width-800, 0, 800, window_height);
+	glViewport(window_width - window_height, 0, window_height, window_height);
 	glUseProgram(h_ShaderProgram_texture);
 	glClearDepth(1.0);
 	glClear(GL_DEPTH_BUFFER_BIT);
@@ -581,12 +600,12 @@ void display(void) {
 	glUniform1f(loc_scale, scale);
 	draw_texture();
 
+#ifdef DOUBLE
 	glutSwapBuffers();
-
-	double currTime = glutGet(GLUT_ELAPSED_TIME);
-	total_time += currTime - lastTime;
-	count++;
-	printf("%d\n", total_time / count);
+#else
+	glutPostRedisplay();
+	glFlush();
+#endif
 }
 int x_mid, y_mid;
 float speed;
@@ -615,10 +634,10 @@ void keyboard(unsigned char key, int x, int y) {
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
 
-		cudaGraphicsGLRegisterBuffer(&cuda_pos0_resource, gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
-		cudaGraphicsGLRegisterBuffer(&cuda_pos1_resource, gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
-		cudaGraphicsGLRegisterBuffer(&cuda_pos2_resource, gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
-		cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[0], gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[1], gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[2], gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[3], gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
 #else
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
@@ -654,7 +673,7 @@ void keyboard(unsigned char key, int x, int y) {
 #ifdef CUDA
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
-		cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[3], gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
 #else
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gridBuf3);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
@@ -769,10 +788,10 @@ void keyboard(unsigned char key, int x, int y) {
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gridBuf3);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER, sizeof(grid3), &grid3[0], GL_DYNAMIC_DRAW);
 
-		cudaGraphicsGLRegisterBuffer(&cuda_pos0_resource, gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
-		cudaGraphicsGLRegisterBuffer(&cuda_pos1_resource, gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
-		cudaGraphicsGLRegisterBuffer(&cuda_pos2_resource, gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
-		cudaGraphicsGLRegisterBuffer(&cuda_pos3_resource, gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[0], gridBuf0, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[1], gridBuf1, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[2], gridBuf2, cudaGraphicsMapFlagsWriteDiscard);
+		cudaGraphicsGLRegisterBuffer(&cuda_resource[3], gridBuf3, cudaGraphicsMapFlagsWriteDiscard);
 #else
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gridBuf0);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(grid0), &grid0[0], GL_DYNAMIC_DRAW);
@@ -785,6 +804,7 @@ void keyboard(unsigned char key, int x, int y) {
 #endif
 		break;
 	}
+	glutPostRedisplay();
 }
 
 void mousepress(int button, int state, int x, int y)  {
@@ -800,11 +820,11 @@ void mousepress(int button, int state, int x, int y)  {
 
 void reshape(int width, int height) {
 	float aspect_ratio;
-	glViewport(0, 0, width - 800, height);
+	glViewport(0, 0, width - 400, height);
 	window_width = width;
 	window_height = height;
 
-	aspect_ratio = (float)(width - 800) / height;
+	aspect_ratio = (float)(width - 400) / height;
 	ProjectionMatrix = glm::perspective(15.0f*TO_RADIAN, aspect_ratio, 1.0f, 1000.0f);
 
 	ViewProjectionMatrix = ProjectionMatrix * ViewMatrix;
@@ -852,6 +872,8 @@ void initialize_OpenGL(void) {
 }
 
 void prepare_scene(void) {
+	kidsnow::Grid *grid = new kidsnow::Grid(64, 100.0f);
+	kidsnow::GridRenderer *renderer = new kidsnow::GridRenderer(grid);
 	prepare_axes();
 	prepare_grid();
 	prepare_texture();
@@ -904,7 +926,11 @@ void main(int argc, char *argv[]) {
 	};
 
 	glutInit(&argc, argv);
+#ifdef DOUBLE
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
+#else
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DEPTH);
+#endif
 	glutInitWindowSize(2000, 800);
 	glutInitContextVersion(4, 0);
 	glutInitContextProfile(GLUT_CORE_PROFILE);
